@@ -21,7 +21,21 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            { "mimeType": "text/markdown" },
+            { "mimeType": "text/x-markdown" },
+            { "scheme": "file", "pathPattern": ".*\\.md" },
+            { "scheme": "content", "pathPattern": ".*\\.md" },
+            { "scheme": "file", "pathPattern": ".*\\.markdown" },
+            { "scheme": "content", "pathPattern": ".*\\.markdown" }
+          ],
+          "category": ["DEFAULT", "BROWSABLE"]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",

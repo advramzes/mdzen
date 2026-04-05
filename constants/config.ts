@@ -1,10 +1,16 @@
 import type { ThemeName } from './themes';
 
+export const APP_NAME = 'MDZen';
+export const APP_VERSION = '1.0.0';
+export const COPYRIGHT = '\u00A9 2026 Miftakhov Ramzes';
+export const WEBSITE = 'https://ramzes-it.ru/?utm_source=mdzen&utm_medium=apk';
+
 export const DEFAULT_THEME: ThemeName = 'emerald';
 
 export const STORAGE_KEYS = {
   THEME: '@mdzen/theme',
   RECENT_FILES: '@mdzen/recent-files',
+  SCROLL_PREFIX: '@mdzen/scroll/',
 } as const;
 
 export const SPACING = {

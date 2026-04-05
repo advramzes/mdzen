@@ -1,6 +1,7 @@
 import { Slot } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider } from '../components/ThemeProvider';
+import { FileProvider } from '../components/FileProvider';
 import { useTheme } from '../hooks/useTheme';
 
 function RootInner() {
@@ -17,7 +18,9 @@ function RootInner() {
 export default function RootLayout() {
   return (
     <ThemeProvider>
-      <RootInner />
+      <FileProvider>
+        <RootInner />
+      </FileProvider>
     </ThemeProvider>
   );
 }
