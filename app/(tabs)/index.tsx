@@ -11,7 +11,6 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as DocumentPicker from 'expo-document-picker';
 import { FilePlus, FileText, SearchX } from 'lucide-react-native';
 import { useTheme } from '../../hooks/useTheme';
 import { useRecentFiles, type RecentFile } from '../../hooks/useRecentFiles';
@@ -60,7 +59,6 @@ export default function FilesScreen() {
   // Open a file from recents — use stored content if available
   const openFileFromRecent = useCallback(
     async (file: RecentFile) => {
-      // If content is stored, use it directly (no URI re-read needed)
       if (file.content) {
         mediumHaptic();
         updateLastOpened(file.uri);
@@ -69,7 +67,6 @@ export default function FilesScreen() {
         return;
       }
 
-      // On native, try reading from cached URI
       if (Platform.OS !== 'web') {
         try {
           const content = await readFileFromUri(file.uri);
@@ -91,7 +88,6 @@ export default function FilesScreen() {
         }
       }
 
-      // Web: no stored content and blob URL expired — prompt re-open
       Alert.alert(
         'File needs to be re-opened',
         'The cached link to this file has expired. Please select the file again.',
@@ -104,9 +100,52 @@ export default function FilesScreen() {
     [updateLastOpened, addRecent, setOpenFile, router, removeRecent],
   );
 
-  const pickFile = useCallback(async () => {
+  // ---- WEB file picker: native HTML <input type="file"> ----
+  const pickFileWeb = useCallback(async () => {
     try {
-      // Use */* on all platforms — validate by extension after selection
+      // Dynamic import to avoid bundling on native
+      const { pickFileWeb: webPicker } = await import('../../utils/webFilePicker');
+      setLoading(true);
+
+      const result = await webPicker();
+      if (!result) {
+        setLoading(false);
+        return; // user cancelled
+      }
+
+      const { name, size, content } = result;
+
+      if (!isMarkdownFile(name)) {
+        setLoading(false);
+        Alert.alert('Unsupported file', 'Please select a Markdown file (.md, .markdown, or .txt).');
+        return;
+      }
+
+      if (!content) {
+        setLoading(false);
+        Alert.alert('Error', 'File appears to be empty or unreadable.');
+        return;
+      }
+
+      setLoading(false);
+
+      // DEBUG: verify file was read (remove after testing)
+      Alert.alert(
+        'File read OK',
+        `"${name}" — ${content.length} chars\n\nPreview: ${content.substring(0, 80)}...`,
+        [{ text: 'Open in Viewer', onPress: () => openWithContent(name, `web://${name}`, size, content) }],
+      );
+    } catch (err: any) {
+      setLoading(false);
+      Alert.alert('File read error', String(err?.message ?? err));
+    }
+  }, [openWithContent]);
+
+  // ---- NATIVE file picker: expo-document-picker ----
+  const pickFileNative = useCallback(async () => {
+    try {
+      const DocumentPicker = await import('expo-document-picker');
+
       const result = await DocumentPicker.getDocumentAsync({
         type: ['*/*'],
         copyToCacheDirectory: true,
@@ -119,56 +158,52 @@ export default function FilesScreen() {
       const name = asset.name ?? 'Untitled.md';
 
       if (!isMarkdownFile(name)) {
-        Alert.alert(
-          'Unsupported file',
-          'Please select a Markdown file (.md, .markdown, or .txt).',
-        );
+        Alert.alert('Unsupported file', 'Please select a Markdown file (.md, .markdown, or .txt).');
         return;
       }
 
       const size = asset.size ?? 0;
 
-      // Read content per platform
-      let content: string;
       try {
         setLoading(true);
-
-        if (Platform.OS === 'web' && asset.file) {
-          // Web: use File.text() API directly from the File object
-          content = await asset.file.text();
-        } else {
-          // Native (iOS/Android): read from cached URI
-          content = await readFileFromUri(asset.uri);
-        }
-      } catch {
-        Alert.alert('Error', 'Could not read the file content.');
-        return;
-      } finally {
+        const content = await readFileFromUri(asset.uri);
         setLoading(false);
-      }
 
-      if (!content && content !== '') {
-        Alert.alert('Error', 'File appears to be empty or unreadable.');
-        return;
-      }
+        if (!content) {
+          Alert.alert('Error', 'File appears to be empty or unreadable.');
+          return;
+        }
 
-      if (size > MAX_FILE_SIZE) {
-        Alert.alert(
-          'Large file',
-          `This file is ${(size / 1024 / 1024).toFixed(1)}MB. It may take a moment to render.`,
-          [
-            { text: 'Open anyway', onPress: () => openWithContent(name, asset.uri, size, content) },
-            { text: 'Cancel', style: 'cancel' },
-          ],
-        );
-        return;
-      }
+        if (size > MAX_FILE_SIZE) {
+          Alert.alert(
+            'Large file',
+            `This file is ${(size / 1024 / 1024).toFixed(1)}MB. It may take a moment to render.`,
+            [
+              { text: 'Open anyway', onPress: () => openWithContent(name, asset.uri, size, content) },
+              { text: 'Cancel', style: 'cancel' },
+            ],
+          );
+          return;
+        }
 
-      openWithContent(name, asset.uri, size, content);
-    } catch {
-      Alert.alert('Error', 'Could not open file picker. Please try again.');
+        openWithContent(name, asset.uri, size, content);
+      } catch (err: any) {
+        setLoading(false);
+        Alert.alert('File read error', String(err?.message ?? err));
+      }
+    } catch (err: any) {
+      Alert.alert('Error', 'Could not open file picker: ' + String(err?.message ?? err));
     }
   }, [openWithContent]);
+
+  // Route to correct picker per platform
+  const pickFile = useCallback(() => {
+    if (Platform.OS === 'web') {
+      pickFileWeb();
+    } else {
+      pickFileNative();
+    }
+  }, [pickFileWeb, pickFileNative]);
 
   const handleRecentPress = useCallback(
     (file: RecentFile) => {
