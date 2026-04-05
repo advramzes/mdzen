@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1024" height="1024" rx="220" fill="#F0FDF4"/>
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#22C55E" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#22C55E" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="512" cy="512" rx="430.08" ry="430.08" fill="url(#glow)"/>
+  <path d="M 512 20.480000000000018 C 942.0799999999999 217.08800000000002 942.0799999999999 806.912 512 1003.52 C 81.92000000000002 806.912 81.92000000000002 217.08800000000002 512 20.480000000000018 Z" fill="#22C55E" opacity="0.9"/>
+  <line x1="512" y1="167.93600000000004" x2="512" y2="856.064" stroke="#F0FDF4" stroke-width="12" opacity="0.3"/>
+  <text x="512" y="573.44" text-anchor="middle" font-size="225.28" font-weight="700" fill="#F0FDF4" font-family="system-ui, -apple-system, sans-serif" letter-spacing="10">MD</text>
+</svg>

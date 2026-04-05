@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -11,7 +12,6 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
 import { FilePlus, FileText, SearchX } from 'lucide-react-native';
 import { useTheme } from '../../hooks/useTheme';
 import { useRecentFiles, type RecentFile } from '../../hooks/useRecentFiles';
@@ -21,6 +21,7 @@ import { SearchBar } from '../../components/SearchBar';
 import { SPACING, RADIUS, ICON_SIZE, FONT, MIN_TOUCH } from '../../constants/config';
 import { s, ms } from '../../utils/scale';
 import { mediumHaptic } from '../../utils/haptics';
+import { readFileContent } from '../../utils/fileReader';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
@@ -42,26 +43,29 @@ export default function FilesScreen() {
 
   const openFile = useCallback(
     async (uri: string, name: string, path: string, size: number) => {
-      // Large file warning
       if (size > MAX_FILE_SIZE) {
         setLoading(true);
       }
 
       try {
-        const content = await FileSystem.readAsStringAsync(uri);
+        const content = await readFileContent(uri);
         mediumHaptic();
         addRecent({ name, path, uri, size });
         setOpenFile({ name, uri, content });
         router.navigate('/(tabs)/viewer');
       } catch {
-        Alert.alert(
-          'File not found',
-          'This file may have been moved or deleted.',
-          [
-            { text: 'Remove from recents', onPress: () => removeRecent(uri), style: 'destructive' },
-            { text: 'OK', style: 'cancel' },
-          ],
-        );
+        if (Platform.OS === 'web') {
+          Alert.alert('Error', 'Could not read the file.');
+        } else {
+          Alert.alert(
+            'File not found',
+            'This file may have been moved or deleted.',
+            [
+              { text: 'Remove from recents', onPress: () => removeRecent(uri), style: 'destructive' },
+              { text: 'OK', style: 'cancel' },
+            ],
+          );
+        }
       } finally {
         setLoading(false);
       }
@@ -72,8 +76,11 @@ export default function FilesScreen() {
   const pickFile = useCallback(async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['text/markdown', 'text/plain', 'text/x-markdown', '*/*'],
+        type: Platform.OS === 'web'
+          ? ['text/markdown', 'text/x-markdown', 'text/plain', '*/*']
+          : ['text/markdown', 'text/plain', 'text/x-markdown', '*/*'],
         copyToCacheDirectory: true,
+        multiple: false,
       });
 
       if (result.canceled || !result.assets?.length) return;
@@ -81,8 +88,9 @@ export default function FilesScreen() {
       const asset = result.assets[0];
       const name = asset.name ?? 'Untitled.md';
 
+      // Accept .md, .markdown, .txt (common on web)
       const ext = name.split('.').pop()?.toLowerCase();
-      if (ext !== 'md' && ext !== 'markdown') {
+      if (ext !== 'md' && ext !== 'markdown' && ext !== 'txt') {
         Alert.alert('Unsupported file', 'Please select a Markdown file (.md or .markdown).');
         return;
       }
@@ -115,7 +123,6 @@ export default function FilesScreen() {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    // Simulate refresh — recents are already live from state
     setTimeout(() => setRefreshing(false), 500);
   }, []);
 
@@ -137,6 +144,7 @@ export default function FilesScreen() {
               size={ICON_SIZE.nav}
               color={colors.background}
               strokeWidth={1.5}
+              accessibilityLabel="Open file icon"
             />
             <Text style={[styles.openButtonText, { color: colors.background }]}>
               Open File
@@ -174,7 +182,12 @@ export default function FilesScreen() {
         }
         ListEmptyComponent={
           recents.length === 0 ? (
-            <View style={styles.empty}>
+            <Pressable
+              onPress={pickFile}
+              style={styles.empty}
+              accessibilityRole="button"
+              accessibilityLabel="Open your first Markdown file"
+            >
               <FileText
                 size={ms(48)}
                 color={colors.tabBarInactive}
@@ -189,9 +202,9 @@ export default function FilesScreen() {
               <Text
                 style={[styles.emptySubtitle, { color: colors.tabBarInactive }]}
               >
-                Tap the button above to browse your files
+                Tap here or the button above to browse
               </Text>
-            </View>
+            </Pressable>
           ) : (
             <View style={styles.empty}>
               <SearchX

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
   Animated,
   PanResponder,
@@ -100,6 +100,10 @@ export function FileCard({ file, index, onPress, onRemove }: FileCardProps) {
     }).start();
   };
 
+  const handlePress = useCallback(() => {
+    onPress(file);
+  }, [onPress, file]);
+
   const isDark = theme.name === 'dark';
 
   return (
@@ -137,8 +141,11 @@ export function FileCard({ file, index, onPress, onRemove }: FileCardProps) {
         {...panResponder.panHandlers}
       >
         <Pressable
-          onPress={() => onPress(file)}
-          style={styles.cardContent}
+          onPress={handlePress}
+          style={({ pressed }) => [
+            styles.cardContent,
+            { opacity: pressed ? 0.7 : 1 },
+          ]}
           accessibilityRole="button"
           accessibilityLabel={`Open ${file.name}`}
         >

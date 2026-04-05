@@ -1,20 +1,20 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { Slot } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider } from '../components/ThemeProvider';
 import { FileProvider } from '../components/FileProvider';
+import { AppLogo } from '../components/AppLogo';
 import { useTheme } from '../hooks/useTheme';
 import { APP_NAME, COPYRIGHT, FONT, SPACING } from '../constants/config';
-import { ms } from '../utils/scale';
 
 SplashScreen.preventAutoHideAsync();
 
 function AppSplash({ onFinish }: { onFinish: () => void }) {
   const { theme } = useTheme();
   const { colors } = theme;
-  const fadeAnim = new Animated.Value(1);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -35,7 +35,10 @@ function AppSplash({ onFinish }: { onFinish: () => void }) {
         { backgroundColor: colors.background, opacity: fadeAnim },
       ]}
     >
-      <Text style={[styles.splashIcon, { color: colors.primary }]}>M</Text>
+      <AppLogo
+        primaryColor={colors.primary}
+        backgroundColor={colors.background}
+      />
       <Text style={[styles.splashTitle, { color: colors.primary }]}>
         {APP_NAME}
       </Text>
@@ -91,15 +94,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 100,
   },
-  splashIcon: {
-    fontSize: ms(72),
-    fontWeight: '700',
-    lineHeight: ms(80),
-  },
   splashTitle: {
     fontSize: FONT.h1,
     fontWeight: '600',
-    marginTop: SPACING.sm,
+    marginTop: SPACING.md,
   },
   splashCopyright: {
     fontSize: FONT.caption,

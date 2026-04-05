@@ -1,4 +1,4 @@
-import { StyleSheet, TextInput, View, Pressable } from 'react-native';
+import { Platform, StyleSheet, TextInput, View, Pressable } from 'react-native';
 import { Search, X } from 'lucide-react-native';
 import { useTheme } from '../hooks/useTheme';
 import { SPACING, RADIUS, ICON_SIZE, FONT, MIN_TOUCH } from '../constants/config';
@@ -29,9 +29,15 @@ export function SearchBar({
         size={ICON_SIZE.inline}
         color={colors.tabBarInactive}
         strokeWidth={1.5}
+        accessibilityLabel="Search icon"
       />
       <TextInput
-        style={[styles.input, { color: colors.onBackground }]}
+        style={[
+          styles.input,
+          { color: colors.onBackground },
+          // Web fix: ensure the input is interactive
+          Platform.OS === 'web' ? { outlineStyle: 'none' as any } : {},
+        ]}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -39,7 +45,10 @@ export function SearchBar({
         returnKeyType="search"
         autoCapitalize="none"
         autoCorrect={false}
+        editable={true}
+        selectTextOnFocus={false}
         accessibilityLabel="Search files"
+        accessibilityRole="search"
       />
       {value.length > 0 && (
         <Pressable
@@ -53,6 +62,7 @@ export function SearchBar({
             size={ICON_SIZE.inline}
             color={colors.tabBarInactive}
             strokeWidth={1.5}
+            accessibilityLabel="Clear icon"
           />
         </Pressable>
       )}
@@ -69,17 +79,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     height: s(48),
     marginBottom: SPACING.md,
+    zIndex: 10,
+    position: 'relative',
   },
   input: {
     flex: 1,
     fontSize: FONT.body,
     marginLeft: SPACING.sm,
-    paddingVertical: 0,
+    paddingVertical: SPACING.sm,
+    height: '100%',
+    zIndex: 11,
   },
   clearButton: {
     minWidth: MIN_TOUCH,
     minHeight: MIN_TOUCH,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 12,
   },
 });

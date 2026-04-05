@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <path d="M 16 0.6400000000000006 C 29.439999999999998 6.784000000000001 29.439999999999998 25.216 16 31.36 C 2.5600000000000005 25.216 2.5600000000000005 6.784000000000001 16 0.6400000000000006 Z" fill="#22C55E"/>
+  <text x="16" y="18.56" text-anchor="middle" font-size="8.96" font-weight="700" fill="#F0FDF4" font-family="system-ui,sans-serif">MD</text>
+</svg>
