@@ -13,6 +13,7 @@ import { List, X } from 'lucide-react-native';
 import { useTheme } from '../hooks/useTheme';
 import { SPACING, RADIUS, ICON_SIZE, FONT, LINE_HEIGHT, MIN_TOUCH } from '../constants/config';
 import { s } from '../utils/scale';
+import { lightHaptic } from '../utils/haptics';
 import type { HeadingEntry } from './MarkdownRenderer';
 
 const SHEET_HEIGHT_RATIO = 0.6;
@@ -59,6 +60,7 @@ export function TOCSheet({ headings, onSelect }: TOCSheetProps) {
   }, [visible, slideAnim]);
 
   const handleSelect = (heading: HeadingEntry) => {
+    lightHaptic();
     close();
     // Delay to let sheet animate out
     setTimeout(() => onSelect(heading), 150);

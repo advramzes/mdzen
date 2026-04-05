@@ -63,7 +63,7 @@ export default function ViewerScreen() {
           No file open
         </Text>
         <Text style={[styles.emptySubtitle, { color: colors.tabBarInactive }]}>
-          Open a Markdown file from the Files tab
+          Select a file from the Files tab
         </Text>
       </View>
     );

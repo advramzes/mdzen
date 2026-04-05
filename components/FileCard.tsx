@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   Animated,
   PanResponder,
@@ -11,9 +11,11 @@ import { Trash2 } from 'lucide-react-native';
 import { useTheme } from '../hooks/useTheme';
 import { SPACING, RADIUS, ICON_SIZE, FONT, LINE_HEIGHT, MIN_TOUCH } from '../constants/config';
 import { s } from '../utils/scale';
+import { isReducedMotion } from '../utils/haptics';
 import type { RecentFile } from '../hooks/useRecentFiles';
 
 const SWIPE_THRESHOLD = -80;
+const STAGGER_DELAY = 50;
 
 function formatRelativeTime(isoDate: string): string {
   const diff = Date.now() - new Date(isoDate).getTime();
@@ -43,14 +45,27 @@ function truncatePath(path: string, maxLength = 40): string {
 
 interface FileCardProps {
   file: RecentFile;
+  index: number;
   onPress: (file: RecentFile) => void;
   onRemove: (uri: string) => void;
 }
 
-export function FileCard({ file, onPress, onRemove }: FileCardProps) {
+export function FileCard({ file, index, onPress, onRemove }: FileCardProps) {
   const { theme } = useTheme();
   const { colors } = theme;
   const translateX = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const delay = isReducedMotion() ? 0 : index * STAGGER_DELAY;
+    const duration = isReducedMotion() ? 0 : 300;
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration,
+      delay,
+      useNativeDriver: true,
+    }).start();
+  }, [fadeAnim, index]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -88,7 +103,7 @@ export function FileCard({ file, onPress, onRemove }: FileCardProps) {
   const isDark = theme.name === 'dark';
 
   return (
-    <View style={styles.wrapper}>
+    <Animated.View style={[styles.wrapper, { opacity: fadeAnim }]}>
       <Pressable
         onPress={() => {
           resetSwipe();
@@ -149,7 +164,7 @@ export function FileCard({ file, onPress, onRemove }: FileCardProps) {
           </View>
         </Pressable>
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 

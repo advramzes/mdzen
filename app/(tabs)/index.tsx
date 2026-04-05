@@ -1,8 +1,10 @@
 import { useCallback, useContext, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -10,7 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
-import { FilePlus, FileText } from 'lucide-react-native';
+import { FilePlus, FileText, SearchX } from 'lucide-react-native';
 import { useTheme } from '../../hooks/useTheme';
 import { useRecentFiles, type RecentFile } from '../../hooks/useRecentFiles';
 import { FileContext } from '../../components/FileProvider';
@@ -18,6 +20,9 @@ import { FileCard } from '../../components/FileCard';
 import { SearchBar } from '../../components/SearchBar';
 import { SPACING, RADIUS, ICON_SIZE, FONT, MIN_TOUCH } from '../../constants/config';
 import { s, ms } from '../../utils/scale';
+import { mediumHaptic } from '../../utils/haptics';
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 export default function FilesScreen() {
   const { theme } = useTheme();
@@ -26,6 +31,8 @@ export default function FilesScreen() {
   const { recents, addRecent, removeRecent } = useRecentFiles();
   const { setOpenFile } = useContext(FileContext);
   const [search, setSearch] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const filtered = search
     ? recents.filter((f) =>
@@ -35,16 +42,31 @@ export default function FilesScreen() {
 
   const openFile = useCallback(
     async (uri: string, name: string, path: string, size: number) => {
+      // Large file warning
+      if (size > MAX_FILE_SIZE) {
+        setLoading(true);
+      }
+
       try {
         const content = await FileSystem.readAsStringAsync(uri);
+        mediumHaptic();
         addRecent({ name, path, uri, size });
         setOpenFile({ name, uri, content });
         router.navigate('/(tabs)/viewer');
       } catch {
-        Alert.alert('Error', 'Could not read the file. It may have been moved or deleted.');
+        Alert.alert(
+          'File not found',
+          'This file may have been moved or deleted.',
+          [
+            { text: 'Remove from recents', onPress: () => removeRecent(uri), style: 'destructive' },
+            { text: 'OK', style: 'cancel' },
+          ],
+        );
+      } finally {
+        setLoading(false);
       }
     },
-    [addRecent, setOpenFile, router],
+    [addRecent, setOpenFile, router, removeRecent],
   );
 
   const pickFile = useCallback(async () => {
@@ -65,7 +87,20 @@ export default function FilesScreen() {
         return;
       }
 
-      await openFile(asset.uri, name, asset.uri, asset.size ?? 0);
+      const size = asset.size ?? 0;
+      if (size > MAX_FILE_SIZE) {
+        Alert.alert(
+          'Large file',
+          `This file is ${(size / 1024 / 1024).toFixed(1)}MB. It may take a moment to load.`,
+          [
+            { text: 'Open anyway', onPress: () => openFile(asset.uri, name, asset.uri, size) },
+            { text: 'Cancel', style: 'cancel' },
+          ],
+        );
+        return;
+      }
+
+      await openFile(asset.uri, name, asset.uri, size);
     } catch {
       Alert.alert('Error', 'Could not open file picker.');
     }
@@ -78,6 +113,12 @@ export default function FilesScreen() {
     [openFile],
   );
 
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    // Simulate refresh — recents are already live from state
+    setTimeout(() => setRefreshing(false), 500);
+  }, []);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <SearchBar value={search} onChangeText={setSearch} />
@@ -88,14 +129,20 @@ export default function FilesScreen() {
         accessibilityRole="button"
         accessibilityLabel="Open Markdown file"
       >
-        <FilePlus
-          size={ICON_SIZE.nav}
-          color={colors.background}
-          strokeWidth={1.5}
-        />
-        <Text style={[styles.openButtonText, { color: colors.background }]}>
-          Open File
-        </Text>
+        {loading ? (
+          <ActivityIndicator color={colors.background} />
+        ) : (
+          <>
+            <FilePlus
+              size={ICON_SIZE.nav}
+              color={colors.background}
+              strokeWidth={1.5}
+            />
+            <Text style={[styles.openButtonText, { color: colors.background }]}>
+              Open File
+            </Text>
+          </>
+        )}
       </Pressable>
 
       {recents.length > 0 && (
@@ -107,15 +154,24 @@ export default function FilesScreen() {
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.uri}
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <FileCard
             file={item}
+            index={index}
             onPress={handleRecentPress}
             onRemove={removeRecent}
           />
         )}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
         ListEmptyComponent={
           recents.length === 0 ? (
             <View style={styles.empty}>
@@ -123,24 +179,31 @@ export default function FilesScreen() {
                 size={ms(48)}
                 color={colors.tabBarInactive}
                 strokeWidth={1}
+                accessibilityLabel="No files illustration"
               />
               <Text
                 style={[styles.emptyTitle, { color: colors.onBackground }]}
               >
-                No recent files
+                Open your first Markdown file
               </Text>
               <Text
                 style={[styles.emptySubtitle, { color: colors.tabBarInactive }]}
               >
-                Open a Markdown file to start reading
+                Tap the button above to browse your files
               </Text>
             </View>
           ) : (
             <View style={styles.empty}>
+              <SearchX
+                size={ms(36)}
+                color={colors.tabBarInactive}
+                strokeWidth={1}
+                accessibilityLabel="No search results"
+              />
               <Text
                 style={[styles.emptySubtitle, { color: colors.tabBarInactive }]}
               >
-                No files match your search
+                No matches found
               </Text>
             </View>
           )
@@ -187,6 +250,7 @@ const styles = StyleSheet.create({
     fontSize: FONT.sectionTitle,
     fontWeight: '600',
     marginTop: SPACING.md,
+    textAlign: 'center',
   },
   emptySubtitle: {
     fontSize: FONT.body,

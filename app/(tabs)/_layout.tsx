@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router';
 import { FileText, BookOpen, SlidersHorizontal } from 'lucide-react-native';
 import { useTheme } from '../../hooks/useTheme';
 import { ICON_SIZE } from '../../constants/config';
+import { lightHaptic } from '../../utils/haptics';
 
 export default function TabLayout() {
   const { theme } = useTheme();
@@ -21,6 +22,11 @@ export default function TabLayout() {
         },
         headerTintColor: colors.onBackground,
         headerShadowVisible: false,
+      }}
+      screenListeners={{
+        tabPress: () => {
+          lightHaptic();
+        },
       }}
     >
       <Tabs.Screen
