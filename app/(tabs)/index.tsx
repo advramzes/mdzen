@@ -29,7 +29,7 @@ export default function FilesScreen() {
   const { theme } = useTheme();
   const { colors } = theme;
   const router = useRouter();
-  const { recents, addRecent, removeRecent } = useRecentFiles();
+  const { recents, addRecent, updateLastOpened, removeRecent } = useRecentFiles();
   const { setOpenFile } = useContext(FileContext);
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -41,7 +41,8 @@ export default function FilesScreen() {
       )
     : recents;
 
-  const openFile = useCallback(
+  // Open a file freshly from document picker — read content and store it
+  const openFileFresh = useCallback(
     async (uri: string, name: string, path: string, size: number) => {
       if (size > MAX_FILE_SIZE) {
         setLoading(true);
@@ -50,7 +51,8 @@ export default function FilesScreen() {
       try {
         const content = await readFileContent(uri);
         mediumHaptic();
-        addRecent({ name, path, uri, size });
+        // Store content alongside metadata (for web blob URL expiration)
+        addRecent({ name, path, uri, size, content });
         setOpenFile({ name, uri, content });
         router.navigate('/(tabs)/viewer');
       } catch {
@@ -73,6 +75,54 @@ export default function FilesScreen() {
     [addRecent, setOpenFile, router, removeRecent],
   );
 
+  // Open a file from recents — use stored content if available
+  const openFileFromRecent = useCallback(
+    async (file: RecentFile) => {
+      // If content is stored, use it directly (no URI re-read needed)
+      if (file.content) {
+        mediumHaptic();
+        updateLastOpened(file.uri);
+        setOpenFile({ name: file.name, uri: file.uri, content: file.content });
+        router.navigate('/(tabs)/viewer');
+        return;
+      }
+
+      // On native, try reading from URI
+      if (Platform.OS !== 'web') {
+        try {
+          const content = await readFileContent(file.uri);
+          mediumHaptic();
+          // Re-store with content for future use
+          addRecent({ ...file, content });
+          setOpenFile({ name: file.name, uri: file.uri, content });
+          router.navigate('/(tabs)/viewer');
+          return;
+        } catch {
+          Alert.alert(
+            'File not found',
+            'This file may have been moved or deleted.',
+            [
+              { text: 'Remove from recents', onPress: () => removeRecent(file.uri), style: 'destructive' },
+              { text: 'OK', style: 'cancel' },
+            ],
+          );
+          return;
+        }
+      }
+
+      // Web: no stored content and blob URL expired — prompt re-open
+      Alert.alert(
+        'File needs to be re-opened',
+        'The cached link to this file has expired. Please select the file again.',
+        [
+          { text: 'Open File', onPress: () => pickFile() },
+          { text: 'Cancel', style: 'cancel' },
+        ],
+      );
+    },
+    [updateLastOpened, addRecent, setOpenFile, router, removeRecent],
+  );
+
   const pickFile = useCallback(async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -88,7 +138,6 @@ export default function FilesScreen() {
       const asset = result.assets[0];
       const name = asset.name ?? 'Untitled.md';
 
-      // Accept .md, .markdown, .txt (common on web)
       const ext = name.split('.').pop()?.toLowerCase();
       if (ext !== 'md' && ext !== 'markdown' && ext !== 'txt') {
         Alert.alert('Unsupported file', 'Please select a Markdown file (.md or .markdown).');
@@ -101,24 +150,24 @@ export default function FilesScreen() {
           'Large file',
           `This file is ${(size / 1024 / 1024).toFixed(1)}MB. It may take a moment to load.`,
           [
-            { text: 'Open anyway', onPress: () => openFile(asset.uri, name, asset.uri, size) },
+            { text: 'Open anyway', onPress: () => openFileFresh(asset.uri, name, asset.uri, size) },
             { text: 'Cancel', style: 'cancel' },
           ],
         );
         return;
       }
 
-      await openFile(asset.uri, name, asset.uri, size);
+      await openFileFresh(asset.uri, name, asset.uri, size);
     } catch {
       Alert.alert('Error', 'Could not open file picker.');
     }
-  }, [openFile]);
+  }, [openFileFresh]);
 
   const handleRecentPress = useCallback(
     (file: RecentFile) => {
-      openFile(file.uri, file.name, file.path, file.size);
+      openFileFromRecent(file);
     },
-    [openFile],
+    [openFileFromRecent],
   );
 
   const onRefresh = useCallback(() => {
@@ -161,7 +210,7 @@ export default function FilesScreen() {
 
       <FlatList
         data={filtered}
-        keyExtractor={(item) => item.uri}
+        keyExtractor={(item) => item.name + item.lastOpened}
         renderItem={({ item, index }) => (
           <FileCard
             file={item}
