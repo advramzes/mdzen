@@ -10,6 +10,9 @@ export interface ThemeColors {
   border: string;
   tabBar: string;
   tabBarInactive: string;
+  danger: string;
+  onDanger: string;
+  shadow: string;
   statusBarStyle: 'light' | 'dark';
 }
 
@@ -32,6 +35,9 @@ const emerald: Theme = {
     border: '#D1FAE5',
     tabBar: '#FFFFFF',
     tabBarInactive: '#94A3B8',
+    danger: '#EF4444',
+    onDanger: '#FFFFFF',
+    shadow: '#000000',
     statusBarStyle: 'dark',
   },
 };
@@ -49,6 +55,9 @@ const sepia: Theme = {
     border: '#FFE0B2',
     tabBar: '#FFFFFF',
     tabBarInactive: '#A1887F',
+    danger: '#EF4444',
+    onDanger: '#FFFFFF',
+    shadow: '#000000',
     statusBarStyle: 'dark',
   },
 };
@@ -66,6 +75,9 @@ const dark: Theme = {
     border: '#334155',
     tabBar: '#1E293B',
     tabBarInactive: '#64748B',
+    danger: '#F87171',
+    onDanger: '#FFFFFF',
+    shadow: '#000000',
     statusBarStyle: 'light',
   },
 };
