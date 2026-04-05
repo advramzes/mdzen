@@ -9,7 +9,8 @@ import {
 } from 'react-native';
 import { Trash2 } from 'lucide-react-native';
 import { useTheme } from '../hooks/useTheme';
-import { SPACING, RADIUS, ICON_SIZE } from '../constants/config';
+import { SPACING, RADIUS, ICON_SIZE, FONT, LINE_HEIGHT, MIN_TOUCH } from '../constants/config';
+import { s } from '../utils/scale';
 import type { RecentFile } from '../hooks/useRecentFiles';
 
 const SWIPE_THRESHOLD = -80;
@@ -63,7 +64,7 @@ export function FileCard({ file, onPress, onRemove }: FileCardProps) {
       onPanResponderRelease: (_, gesture) => {
         if (gesture.dx < SWIPE_THRESHOLD) {
           Animated.timing(translateX, {
-            toValue: -120,
+            toValue: s(-120),
             duration: 200,
             useNativeDriver: true,
           }).start();
@@ -88,7 +89,6 @@ export function FileCard({ file, onPress, onRemove }: FileCardProps) {
 
   return (
     <View style={styles.wrapper}>
-      {/* Delete button behind card */}
       <Pressable
         onPress={() => {
           resetSwipe();
@@ -163,11 +163,10 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    width: 100,
+    width: s(100),
     borderRadius: RADIUS.card,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 0,
   },
   card: {
     borderRadius: RADIUS.card,
@@ -175,16 +174,16 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     padding: SPACING.md,
-    minHeight: 44,
+    minHeight: MIN_TOUCH,
   },
   fileName: {
-    fontSize: 16,
+    fontSize: FONT.body,
     fontWeight: '600',
-    lineHeight: 22,
+    lineHeight: LINE_HEIGHT.caption + s(5),
   },
   filePath: {
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: FONT.caption,
+    lineHeight: LINE_HEIGHT.caption,
     marginTop: SPACING.xs,
   },
   metaRow: {
@@ -193,7 +192,7 @@ const styles = StyleSheet.create({
     marginTop: SPACING.sm,
   },
   metaText: {
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: FONT.caption,
+    lineHeight: LINE_HEIGHT.caption,
   },
 });

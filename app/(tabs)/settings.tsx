@@ -6,11 +6,15 @@ import {
   APP_NAME,
   APP_VERSION,
   COPYRIGHT,
+  FONT,
   ICON_SIZE,
+  LINE_HEIGHT,
+  MIN_TOUCH,
   RADIUS,
   SPACING,
   WEBSITE,
 } from '../../constants/config';
+import { s } from '../../utils/scale';
 
 export default function SettingsScreen() {
   const { theme, setTheme } = useTheme();
@@ -101,9 +105,9 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.xxl,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: FONT.sectionTitle,
     fontWeight: '600',
-    lineHeight: 28,
+    lineHeight: LINE_HEIGHT.h3,
     marginBottom: SPACING.md,
   },
   themeOption: {
@@ -113,16 +117,16 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.card,
     borderWidth: 2,
     marginBottom: SPACING.sm,
-    minHeight: 56,
+    minHeight: MIN_TOUCH + s(12),
   },
   swatch: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: s(24),
+    height: s(24),
+    borderRadius: s(12),
     marginRight: SPACING.md,
   },
   themeLabel: {
-    fontSize: 16,
+    fontSize: FONT.body,
     fontWeight: '500',
   },
   divider: {
@@ -135,23 +139,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   appName: {
-    fontSize: 20,
+    fontSize: FONT.sectionTitle,
     fontWeight: '600',
     marginBottom: SPACING.xs,
   },
   aboutText: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: FONT.code,
+    lineHeight: LINE_HEIGHT.caption + s(3),
     marginBottom: SPACING.xs,
   },
   linkRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: SPACING.sm,
-    minHeight: 44,
+    minHeight: MIN_TOUCH,
   },
   linkText: {
-    fontSize: 16,
+    fontSize: FONT.body,
     fontWeight: '500',
     marginRight: SPACING.sm,
     textDecorationLine: 'underline',

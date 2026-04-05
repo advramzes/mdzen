@@ -1,8 +1,8 @@
-import { StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, View, Pressable } from 'react-native';
 import { Search, X } from 'lucide-react-native';
-import { Pressable } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
-import { SPACING, RADIUS, ICON_SIZE } from '../constants/config';
+import { SPACING, RADIUS, ICON_SIZE, FONT, MIN_TOUCH } from '../constants/config';
+import { s } from '../utils/scale';
 
 interface SearchBarProps {
   value: string;
@@ -67,18 +67,18 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.input,
     borderWidth: 1,
     paddingHorizontal: SPACING.md,
-    height: 48,
+    height: s(48),
     marginBottom: SPACING.md,
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    fontSize: FONT.body,
     marginLeft: SPACING.sm,
     paddingVertical: 0,
   },
   clearButton: {
-    minWidth: 44,
-    minHeight: 44,
+    minWidth: MIN_TOUCH,
+    minHeight: MIN_TOUCH,
     alignItems: 'center',
     justifyContent: 'center',
   },

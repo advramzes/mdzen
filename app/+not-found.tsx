@@ -1,7 +1,7 @@
 import { Link, Stack } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
-import { SPACING } from '../constants/config';
+import { SPACING, FONT } from '../constants/config';
 
 export default function NotFoundScreen() {
   const { theme } = useTheme();
@@ -30,11 +30,11 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
   },
   title: {
-    fontSize: 20,
+    fontSize: FONT.sectionTitle,
     fontWeight: '600',
   },
   link: {
     marginTop: SPACING.md,
-    fontSize: 16,
+    fontSize: FONT.body,
   },
 });

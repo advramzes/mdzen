@@ -16,7 +16,8 @@ import { useRecentFiles, type RecentFile } from '../../hooks/useRecentFiles';
 import { FileContext } from '../../components/FileProvider';
 import { FileCard } from '../../components/FileCard';
 import { SearchBar } from '../../components/SearchBar';
-import { SPACING, RADIUS, ICON_SIZE } from '../../constants/config';
+import { SPACING, RADIUS, ICON_SIZE, FONT, MIN_TOUCH } from '../../constants/config';
+import { s, ms } from '../../utils/scale';
 
 export default function FilesScreen() {
   const { theme } = useTheme();
@@ -58,19 +59,13 @@ export default function FilesScreen() {
       const asset = result.assets[0];
       const name = asset.name ?? 'Untitled.md';
 
-      // Only accept .md / .markdown files
       const ext = name.split('.').pop()?.toLowerCase();
       if (ext !== 'md' && ext !== 'markdown') {
         Alert.alert('Unsupported file', 'Please select a Markdown file (.md or .markdown).');
         return;
       }
 
-      await openFile(
-        asset.uri,
-        name,
-        asset.uri,
-        asset.size ?? 0,
-      );
+      await openFile(asset.uri, name, asset.uri, asset.size ?? 0);
     } catch {
       Alert.alert('Error', 'Could not open file picker.');
     }
@@ -104,9 +99,7 @@ export default function FilesScreen() {
       </Pressable>
 
       {recents.length > 0 && (
-        <Text
-          style={[styles.sectionTitle, { color: colors.onBackground }]}
-        >
+        <Text style={[styles.sectionTitle, { color: colors.onBackground }]}>
           Recent Files
         </Text>
       )}
@@ -127,7 +120,7 @@ export default function FilesScreen() {
           recents.length === 0 ? (
             <View style={styles.empty}>
               <FileText
-                size={48}
+                size={ms(48)}
                 color={colors.tabBarInactive}
                 strokeWidth={1}
               />
@@ -167,17 +160,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 52,
+    height: Math.max(s(52), MIN_TOUCH),
     borderRadius: RADIUS.button,
     marginBottom: SPACING.lg,
     gap: SPACING.sm,
   },
   openButtonText: {
-    fontSize: 16,
+    fontSize: FONT.button,
     fontWeight: '600',
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: FONT.body,
     fontWeight: '600',
     marginBottom: SPACING.sm,
   },
@@ -191,12 +184,12 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
   },
   emptyTitle: {
-    fontSize: 20,
+    fontSize: FONT.sectionTitle,
     fontWeight: '600',
     marginTop: SPACING.md,
   },
   emptySubtitle: {
-    fontSize: 16,
+    fontSize: FONT.body,
     textAlign: 'center',
   },
 });

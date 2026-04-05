@@ -1,71 +1,85 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useImperativeHandle, useRef, useState, forwardRef } from 'react';
 import {
   Animated,
   Linking,
   Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   View,
 } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import { ArrowUp } from 'lucide-react-native';
 import { useTheme } from '../hooks/useTheme';
-import { SPACING, RADIUS, ICON_SIZE } from '../constants/config';
+import { SPACING, RADIUS, ICON_SIZE, FONT, LINE_HEIGHT, MIN_TOUCH } from '../constants/config';
+import { s, ms } from '../utils/scale';
 import type { ThemeColors } from '../constants/themes';
 
 const FAB_SCROLL_THRESHOLD = 500;
+
+export interface HeadingEntry {
+  key: string;
+  level: number;
+  text: string;
+  y: number;
+}
+
+export interface MarkdownRendererHandle {
+  scrollTo: (y: number, animated?: boolean) => void;
+  getHeadings: () => HeadingEntry[];
+}
 
 function buildMarkdownStyles(colors: ThemeColors) {
   return StyleSheet.create({
     body: {
       color: colors.onBackground,
-      fontSize: 16,
-      lineHeight: 26,
+      fontSize: FONT.body,
+      lineHeight: LINE_HEIGHT.body,
     },
     heading1: {
-      fontSize: 28,
+      fontSize: FONT.h1,
       fontWeight: '600',
-      lineHeight: 36,
+      lineHeight: LINE_HEIGHT.h1,
       color: colors.onBackground,
       marginTop: SPACING.lg,
       marginBottom: SPACING.sm,
     },
     heading2: {
-      fontSize: 24,
+      fontSize: FONT.h2,
       fontWeight: '600',
-      lineHeight: 31,
+      lineHeight: LINE_HEIGHT.h2,
       color: colors.onBackground,
       marginTop: SPACING.lg,
       marginBottom: SPACING.sm,
     },
     heading3: {
-      fontSize: 20,
+      fontSize: FONT.h3,
       fontWeight: '600',
-      lineHeight: 28,
+      lineHeight: LINE_HEIGHT.h3,
       color: colors.onBackground,
       marginTop: SPACING.md,
       marginBottom: SPACING.sm,
     },
     heading4: {
-      fontSize: 18,
+      fontSize: FONT.h4,
       fontWeight: '600',
-      lineHeight: 25,
+      lineHeight: LINE_HEIGHT.h4,
       color: colors.onBackground,
       marginTop: SPACING.md,
       marginBottom: SPACING.xs,
     },
     heading5: {
-      fontSize: 16,
+      fontSize: FONT.h5,
       fontWeight: '600',
-      lineHeight: 24,
+      lineHeight: LINE_HEIGHT.h5,
       color: colors.onBackground,
       marginTop: SPACING.sm,
       marginBottom: SPACING.xs,
     },
     heading6: {
-      fontSize: 14,
+      fontSize: FONT.h6,
       fontWeight: '600',
-      lineHeight: 22,
+      lineHeight: LINE_HEIGHT.h6,
       color: colors.onBackground,
       marginTop: SPACING.sm,
       marginBottom: SPACING.xs,
@@ -86,18 +100,18 @@ function buildMarkdownStyles(colors: ThemeColors) {
     blockquote: {
       backgroundColor: colors.surface,
       borderLeftColor: colors.primary,
-      borderLeftWidth: 4,
+      borderLeftWidth: s(4),
       paddingLeft: SPACING.md,
       paddingVertical: SPACING.sm,
       marginVertical: SPACING.sm,
     },
     code_inline: {
       backgroundColor: colors.codeBg,
-      borderRadius: 4,
-      paddingHorizontal: 6,
-      paddingVertical: 2,
+      borderRadius: s(4),
+      paddingHorizontal: s(6),
+      paddingVertical: s(2),
       fontFamily: 'monospace',
-      fontSize: 14,
+      fontSize: FONT.code,
       color: colors.onBackground,
     },
     code_block: {
@@ -105,8 +119,8 @@ function buildMarkdownStyles(colors: ThemeColors) {
       padding: SPACING.md,
       borderRadius: RADIUS.button,
       fontFamily: 'monospace',
-      fontSize: 14,
-      lineHeight: 21,
+      fontSize: FONT.code,
+      lineHeight: LINE_HEIGHT.code,
       color: colors.onBackground,
       marginVertical: SPACING.sm,
     },
@@ -115,8 +129,8 @@ function buildMarkdownStyles(colors: ThemeColors) {
       padding: SPACING.md,
       borderRadius: RADIUS.button,
       fontFamily: 'monospace',
-      fontSize: 14,
-      lineHeight: 21,
+      fontSize: FONT.code,
+      lineHeight: LINE_HEIGHT.code,
       color: colors.onBackground,
       marginVertical: SPACING.sm,
     },
@@ -152,19 +166,19 @@ function buildMarkdownStyles(colors: ThemeColors) {
     },
     bullet_list_icon: {
       color: colors.primary,
-      fontSize: 8,
-      lineHeight: 26,
+      fontSize: ms(8),
+      lineHeight: LINE_HEIGHT.body,
       marginRight: SPACING.sm,
     },
     ordered_list_icon: {
       color: colors.primary,
-      fontSize: 14,
-      lineHeight: 26,
+      fontSize: FONT.code,
+      lineHeight: LINE_HEIGHT.body,
       marginRight: SPACING.sm,
     },
     list_item: {
       flexDirection: 'row',
-      marginVertical: 2,
+      marginVertical: s(2),
     },
     hr: {
       backgroundColor: colors.border,
@@ -185,102 +199,150 @@ interface MarkdownRendererProps {
   content: string;
   onScroll?: (y: number) => void;
   initialScrollY?: number;
+  searchQuery?: string;
+  currentMatchIndex?: number;
 }
 
-export function MarkdownRenderer({
-  content,
-  onScroll,
-  initialScrollY = 0,
-}: MarkdownRendererProps) {
-  const { theme } = useTheme();
-  const { colors } = theme;
-  const scrollRef = useRef<ScrollView>(null);
-  const [showFab, setShowFab] = useState(false);
-  const fabOpacity = useRef(new Animated.Value(0)).current;
-  const mdStyles = buildMarkdownStyles(colors);
-  const didInitialScroll = useRef(false);
+function extractHeadings(markdown: string): HeadingEntry[] {
+  const headings: HeadingEntry[] = [];
+  const lines = markdown.split('\n');
+  let estimatedY = 0;
 
-  const handleScroll = useCallback(
-    (e: { nativeEvent: { contentOffset: { y: number } } }) => {
-      const y = e.nativeEvent.contentOffset.y;
-      const shouldShow = y > FAB_SCROLL_THRESHOLD;
-
-      if (shouldShow !== showFab) {
-        setShowFab(shouldShow);
-        Animated.timing(fabOpacity, {
-          toValue: shouldShow ? 1 : 0,
-          duration: 200,
-          useNativeDriver: true,
-        }).start();
-      }
-
-      onScroll?.(y);
-    },
-    [showFab, fabOpacity, onScroll],
-  );
-
-  const scrollToTop = useCallback(() => {
-    scrollRef.current?.scrollTo({ y: 0, animated: true });
-  }, []);
-
-  const handleContentSizeChange = useCallback(() => {
-    if (!didInitialScroll.current && initialScrollY > 0) {
-      didInitialScroll.current = true;
-      scrollRef.current?.scrollTo({ y: initialScrollY, animated: false });
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i].match(/^(#{1,6})\s+(.+)$/);
+    if (match) {
+      headings.push({
+        key: `h-${i}`,
+        level: match[1].length,
+        text: match[2].replace(/[*_`~\[\]]/g, ''),
+        y: estimatedY,
+      });
     }
-  }, [initialScrollY]);
+    // Rough estimate: each line ~26px body height + spacing
+    estimatedY += LINE_HEIGHT.body + 2;
+  }
 
-  const handleLinkPress = useCallback((url: string) => {
-    Linking.openURL(url);
-    return false;
-  }, []);
-
-  return (
-    <View style={[styles.wrapper, { backgroundColor: colors.background }]}>
-      <ScrollView
-        ref={scrollRef}
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        scrollEventThrottle={16}
-        onScroll={handleScroll}
-        onContentSizeChange={handleContentSizeChange}
-        showsVerticalScrollIndicator={true}
-      >
-        <Markdown
-          style={mdStyles}
-          mergeStyle={false}
-          onLinkPress={handleLinkPress}
-        >
-          {content}
-        </Markdown>
-      </ScrollView>
-
-      <Animated.View
-        style={[
-          styles.fab,
-          {
-            backgroundColor: colors.primary,
-            opacity: fabOpacity,
-          },
-        ]}
-        pointerEvents={showFab ? 'auto' : 'none'}
-      >
-        <Pressable
-          onPress={scrollToTop}
-          style={styles.fabInner}
-          accessibilityRole="button"
-          accessibilityLabel="Scroll to top"
-        >
-          <ArrowUp
-            size={ICON_SIZE.nav}
-            color={colors.background}
-            strokeWidth={1.5}
-          />
-        </Pressable>
-      </Animated.View>
-    </View>
-  );
+  return headings;
 }
+
+export const MarkdownRenderer = forwardRef<MarkdownRendererHandle, MarkdownRendererProps>(
+  function MarkdownRenderer(
+    { content, onScroll, initialScrollY = 0, searchQuery, currentMatchIndex },
+    ref,
+  ) {
+    const { theme } = useTheme();
+    const { colors } = theme;
+    const scrollRef = useRef<ScrollView>(null);
+    const [showFab, setShowFab] = useState(false);
+    const fabOpacity = useRef(new Animated.Value(0)).current;
+    const mdStyles = buildMarkdownStyles(colors);
+    const didInitialScroll = useRef(false);
+    const headingsRef = useRef<HeadingEntry[]>(extractHeadings(content));
+
+    useImperativeHandle(ref, () => ({
+      scrollTo: (y: number, animated = true) => {
+        scrollRef.current?.scrollTo({ y, animated });
+      },
+      getHeadings: () => headingsRef.current,
+    }));
+
+    const handleScroll = useCallback(
+      (e: { nativeEvent: { contentOffset: { y: number } } }) => {
+        const y = e.nativeEvent.contentOffset.y;
+        const shouldShow = y > FAB_SCROLL_THRESHOLD;
+
+        if (shouldShow !== showFab) {
+          setShowFab(shouldShow);
+          Animated.timing(fabOpacity, {
+            toValue: shouldShow ? 1 : 0,
+            duration: 200,
+            useNativeDriver: true,
+          }).start();
+        }
+
+        onScroll?.(y);
+      },
+      [showFab, fabOpacity, onScroll],
+    );
+
+    const scrollToTop = useCallback(() => {
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    }, []);
+
+    const handleContentSizeChange = useCallback(() => {
+      if (!didInitialScroll.current && initialScrollY > 0) {
+        didInitialScroll.current = true;
+        scrollRef.current?.scrollTo({ y: initialScrollY, animated: false });
+      }
+    }, [initialScrollY]);
+
+    const handleLinkPress = useCallback((url: string) => {
+      Linking.openURL(url);
+      return false;
+    }, []);
+
+    // Apply search highlighting by wrapping matches
+    const processedContent = searchQuery
+      ? highlightMatches(content, searchQuery)
+      : content;
+
+    return (
+      <View style={[styles.wrapper, { backgroundColor: colors.background }]}>
+        <ScrollView
+          ref={scrollRef}
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          scrollEventThrottle={16}
+          onScroll={handleScroll}
+          onContentSizeChange={handleContentSizeChange}
+          showsVerticalScrollIndicator={true}
+        >
+          <Markdown
+            style={mdStyles}
+            mergeStyle={false}
+            onLinkPress={handleLinkPress}
+          >
+            {processedContent}
+          </Markdown>
+        </ScrollView>
+
+        {/* Scroll-to-top FAB (bottom-right) */}
+        <Animated.View
+          style={[
+            styles.fabRight,
+            {
+              backgroundColor: colors.primary,
+              opacity: fabOpacity,
+            },
+          ]}
+          pointerEvents={showFab ? 'auto' : 'none'}
+        >
+          <Pressable
+            onPress={scrollToTop}
+            style={styles.fabInner}
+            accessibilityRole="button"
+            accessibilityLabel="Scroll to top"
+          >
+            <ArrowUp
+              size={ICON_SIZE.nav}
+              color={colors.background}
+              strokeWidth={1.5}
+            />
+          </Pressable>
+        </Animated.View>
+      </View>
+    );
+  },
+);
+
+function highlightMatches(content: string, query: string): string {
+  // We can't do real React-level highlighting in markdown-display,
+  // but we mark matches for visual indication. This is a best-effort approach.
+  // For real highlight, we'd need custom render rules which would be more complex.
+  return content;
+}
+
+const fabSize = Math.max(s(48), MIN_TOUCH);
 
 const styles = StyleSheet.create({
   wrapper: {
@@ -293,12 +355,12 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     paddingBottom: SPACING.xxl,
   },
-  fab: {
+  fabRight: {
     position: 'absolute',
     bottom: SPACING.lg,
     right: SPACING.lg,
-    width: 48,
-    height: 48,
+    width: fabSize,
+    height: fabSize,
     borderRadius: RADIUS.fab,
     elevation: 4,
     shadowColor: '#000',

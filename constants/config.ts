@@ -1,4 +1,5 @@
 import type { ThemeName } from './themes';
+import { s, ms } from '../utils/scale';
 
 export const APP_NAME = 'MDZen';
 export const APP_VERSION = '1.0.0';
@@ -14,24 +15,52 @@ export const STORAGE_KEYS = {
 } as const;
 
 export const SPACING = {
-  xs: 4,
-  sm: 8,
-  md: 16,
-  lg: 24,
-  xl: 32,
-  xxl: 48,
+  xs: s(4),
+  sm: s(8),
+  md: s(16),
+  lg: s(24),
+  xl: s(32),
+  xxl: s(48),
 } as const;
 
 export const RADIUS = {
-  button: 12,
-  card: 16,
-  sheet: 24,
+  button: s(12),
+  card: s(16),
+  sheet: s(24),
   fab: 50,
-  input: 12,
+  input: s(12),
 } as const;
 
 export const ICON_SIZE = {
-  inline: 20,
-  nav: 24,
-  accent: 32,
+  inline: ms(20),
+  nav: ms(24),
+  accent: ms(32),
 } as const;
+
+export const FONT = {
+  h1: ms(28),
+  h2: ms(24),
+  h3: ms(20),
+  h4: ms(18),
+  h5: ms(16),
+  h6: ms(14),
+  body: ms(16),
+  code: ms(14),
+  caption: ms(12),
+  button: ms(16),
+  sectionTitle: ms(20),
+} as const;
+
+export const LINE_HEIGHT = {
+  h1: ms(36),
+  h2: ms(31),
+  h3: ms(28),
+  h4: ms(25),
+  h5: ms(24),
+  h6: ms(22),
+  body: ms(26),
+  code: ms(21),
+  caption: ms(17),
+} as const;
+
+export const MIN_TOUCH = 44;
