@@ -128,13 +128,7 @@ export default function FilesScreen() {
       }
 
       setLoading(false);
-
-      // DEBUG: verify file was read (remove after testing)
-      Alert.alert(
-        'File read OK',
-        `"${name}" — ${content.length} chars\n\nPreview: ${content.substring(0, 80)}...`,
-        [{ text: 'Open in Viewer', onPress: () => openWithContent(name, `web://${name}`, size, content) }],
-      );
+      openWithContent(name, `web://${name}`, size, content);
     } catch (err: any) {
       setLoading(false);
       Alert.alert('File read error', String(err?.message ?? err));
