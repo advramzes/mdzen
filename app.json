@@ -24,13 +24,18 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
     },
+    "scheme": "mdzen",
     "extra": {
       "eas": {
         "projectId": "4f7d796a-b6fc-4e33-ae20-083cede64e67"
       }
     },
-    "owner": "advramzes"
+    "owner": "advramzes",
+    "plugins": [
+      "expo-router"
+    ]
   }
 }
