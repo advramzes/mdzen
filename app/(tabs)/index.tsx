@@ -21,23 +21,9 @@ import { SearchBar } from '../../components/SearchBar';
 import { SPACING, RADIUS, ICON_SIZE, FONT, MIN_TOUCH } from '../../constants/config';
 import { s, ms } from '../../utils/scale';
 import { mediumHaptic } from '../../utils/haptics';
-import { readFileContent } from '../../utils/fileReader';
+import { readFileFromUri } from '../../utils/fileReader';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-
-// Android file managers often don't recognize text/markdown MIME type.
-// Use broad types first, then validate by file extension after selection.
-function getPickerTypes(): string[] {
-  if (Platform.OS === 'android') {
-    // Use */* on Android — many file managers crash with text/markdown
-    return ['*/*'];
-  }
-  if (Platform.OS === 'web') {
-    return ['text/markdown', 'text/x-markdown', 'text/plain', '*/*'];
-  }
-  // iOS
-  return ['public.text', 'public.plain-text', 'public.data'];
-}
 
 function isMarkdownFile(name: string): boolean {
   const ext = name.split('.').pop()?.toLowerCase();
@@ -60,42 +46,21 @@ export default function FilesScreen() {
       )
     : recents;
 
-  // Open a file freshly from document picker — read content and store it
-  const openFileFresh = useCallback(
-    async (uri: string, name: string, path: string, size: number) => {
-      if (size > MAX_FILE_SIZE) {
-        setLoading(true);
-      }
-
-      try {
-        const content = await readFileContent(uri);
-        mediumHaptic();
-        addRecent({ name, path, uri, size, content });
-        setOpenFile({ name, uri, content });
-        router.navigate('/(tabs)/viewer');
-      } catch (err) {
-        const msg = Platform.OS === 'web'
-          ? 'Could not read the file.'
-          : 'Could not read the file. It may have been moved or deleted.';
-
-        if (Platform.OS !== 'web') {
-          Alert.alert('File error', msg, [
-            { text: 'Remove from recents', onPress: () => removeRecent(uri), style: 'destructive' },
-            { text: 'OK', style: 'cancel' },
-          ]);
-        } else {
-          Alert.alert('Error', msg);
-        }
-      } finally {
-        setLoading(false);
-      }
+  // Navigate to viewer with content
+  const openWithContent = useCallback(
+    (name: string, uri: string, size: number, content: string) => {
+      mediumHaptic();
+      addRecent({ name, path: uri, uri, size, content });
+      setOpenFile({ name, uri, content });
+      router.navigate('/(tabs)/viewer');
     },
-    [addRecent, setOpenFile, router, removeRecent],
+    [addRecent, setOpenFile, router],
   );
 
   // Open a file from recents — use stored content if available
   const openFileFromRecent = useCallback(
     async (file: RecentFile) => {
+      // If content is stored, use it directly (no URI re-read needed)
       if (file.content) {
         mediumHaptic();
         updateLastOpened(file.uri);
@@ -104,9 +69,10 @@ export default function FilesScreen() {
         return;
       }
 
+      // On native, try reading from cached URI
       if (Platform.OS !== 'web') {
         try {
-          const content = await readFileContent(file.uri);
+          const content = await readFileFromUri(file.uri);
           mediumHaptic();
           addRecent({ ...file, content });
           setOpenFile({ name: file.name, uri: file.uri, content });
@@ -125,6 +91,7 @@ export default function FilesScreen() {
         }
       }
 
+      // Web: no stored content and blob URL expired — prompt re-open
       Alert.alert(
         'File needs to be re-opened',
         'The cached link to this file has expired. Please select the file again.',
@@ -139,23 +106,12 @@ export default function FilesScreen() {
 
   const pickFile = useCallback(async () => {
     try {
-      let result: DocumentPicker.DocumentPickerResult;
-
-      try {
-        // First attempt with platform-specific types
-        result = await DocumentPicker.getDocumentAsync({
-          type: getPickerTypes(),
-          copyToCacheDirectory: true,
-          multiple: false,
-        });
-      } catch {
-        // Fallback: if specific MIME types fail, use wildcard
-        result = await DocumentPicker.getDocumentAsync({
-          type: ['*/*'],
-          copyToCacheDirectory: true,
-          multiple: false,
-        });
-      }
+      // Use */* on all platforms — validate by extension after selection
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['*/*'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
 
       if (result.canceled || !result.assets?.length) return;
 
@@ -171,23 +127,48 @@ export default function FilesScreen() {
       }
 
       const size = asset.size ?? 0;
+
+      // Read content per platform
+      let content: string;
+      try {
+        setLoading(true);
+
+        if (Platform.OS === 'web' && asset.file) {
+          // Web: use File.text() API directly from the File object
+          content = await asset.file.text();
+        } else {
+          // Native (iOS/Android): read from cached URI
+          content = await readFileFromUri(asset.uri);
+        }
+      } catch {
+        Alert.alert('Error', 'Could not read the file content.');
+        return;
+      } finally {
+        setLoading(false);
+      }
+
+      if (!content && content !== '') {
+        Alert.alert('Error', 'File appears to be empty or unreadable.');
+        return;
+      }
+
       if (size > MAX_FILE_SIZE) {
         Alert.alert(
           'Large file',
-          `This file is ${(size / 1024 / 1024).toFixed(1)}MB. It may take a moment to load.`,
+          `This file is ${(size / 1024 / 1024).toFixed(1)}MB. It may take a moment to render.`,
           [
-            { text: 'Open anyway', onPress: () => openFileFresh(asset.uri, name, asset.uri, size) },
+            { text: 'Open anyway', onPress: () => openWithContent(name, asset.uri, size, content) },
             { text: 'Cancel', style: 'cancel' },
           ],
         );
         return;
       }
 
-      await openFileFresh(asset.uri, name, asset.uri, size);
-    } catch (err) {
+      openWithContent(name, asset.uri, size, content);
+    } catch {
       Alert.alert('Error', 'Could not open file picker. Please try again.');
     }
-  }, [openFileFresh]);
+  }, [openWithContent]);
 
   const handleRecentPress = useCallback(
     (file: RecentFile) => {

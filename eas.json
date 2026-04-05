@@ -1,11 +1,17 @@
-﻿{
+{
   "cli": { "version": ">= 15.0.0" },
   "build": {
     "preview": {
-      "android": { "buildType": "apk" }
+      "android": {
+        "buildType": "apk",
+        "enableProguard": true
+      }
     },
     "production": {
-      "android": { "buildType": "apk" }
+      "android": {
+        "buildType": "apk",
+        "enableProguard": true
+      }
     }
   }
 }
