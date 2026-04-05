@@ -113,11 +113,11 @@ export function FileCard({ file, index, onPress, onRemove }: FileCardProps) {
           resetSwipe();
           onRemove(file.uri);
         }}
-        style={[styles.deleteButton, { backgroundColor: '#EF4444' }]}
+        style={[styles.deleteButton, { backgroundColor: colors.danger }]}
         accessibilityRole="button"
         accessibilityLabel={`Remove ${file.name} from recents`}
       >
-        <Trash2 size={ICON_SIZE.nav} color="#FFFFFF" strokeWidth={1.5} />
+        <Trash2 size={ICON_SIZE.nav} color={colors.onDanger} strokeWidth={1.5} />
       </Pressable>
 
       <Animated.View
@@ -130,7 +130,7 @@ export function FileCard({ file, index, onPress, onRemove }: FileCardProps) {
             ...(isDark
               ? {}
               : {
-                  shadowColor: '#000',
+                  shadowColor: colors.shadow,
                   shadowOffset: { width: 0, height: 1 },
                   shadowOpacity: 0.08,
                   shadowRadius: 4,

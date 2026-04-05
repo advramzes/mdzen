@@ -25,6 +25,25 @@ import { readFileContent } from '../../utils/fileReader';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
+// Android file managers often don't recognize text/markdown MIME type.
+// Use broad types first, then validate by file extension after selection.
+function getPickerTypes(): string[] {
+  if (Platform.OS === 'android') {
+    // Use */* on Android — many file managers crash with text/markdown
+    return ['*/*'];
+  }
+  if (Platform.OS === 'web') {
+    return ['text/markdown', 'text/x-markdown', 'text/plain', '*/*'];
+  }
+  // iOS
+  return ['public.text', 'public.plain-text', 'public.data'];
+}
+
+function isMarkdownFile(name: string): boolean {
+  const ext = name.split('.').pop()?.toLowerCase();
+  return ext === 'md' || ext === 'markdown' || ext === 'txt';
+}
+
 export default function FilesScreen() {
   const { theme } = useTheme();
   const { colors } = theme;
@@ -51,22 +70,21 @@ export default function FilesScreen() {
       try {
         const content = await readFileContent(uri);
         mediumHaptic();
-        // Store content alongside metadata (for web blob URL expiration)
         addRecent({ name, path, uri, size, content });
         setOpenFile({ name, uri, content });
         router.navigate('/(tabs)/viewer');
-      } catch {
-        if (Platform.OS === 'web') {
-          Alert.alert('Error', 'Could not read the file.');
+      } catch (err) {
+        const msg = Platform.OS === 'web'
+          ? 'Could not read the file.'
+          : 'Could not read the file. It may have been moved or deleted.';
+
+        if (Platform.OS !== 'web') {
+          Alert.alert('File error', msg, [
+            { text: 'Remove from recents', onPress: () => removeRecent(uri), style: 'destructive' },
+            { text: 'OK', style: 'cancel' },
+          ]);
         } else {
-          Alert.alert(
-            'File not found',
-            'This file may have been moved or deleted.',
-            [
-              { text: 'Remove from recents', onPress: () => removeRecent(uri), style: 'destructive' },
-              { text: 'OK', style: 'cancel' },
-            ],
-          );
+          Alert.alert('Error', msg);
         }
       } finally {
         setLoading(false);
@@ -78,7 +96,6 @@ export default function FilesScreen() {
   // Open a file from recents — use stored content if available
   const openFileFromRecent = useCallback(
     async (file: RecentFile) => {
-      // If content is stored, use it directly (no URI re-read needed)
       if (file.content) {
         mediumHaptic();
         updateLastOpened(file.uri);
@@ -87,12 +104,10 @@ export default function FilesScreen() {
         return;
       }
 
-      // On native, try reading from URI
       if (Platform.OS !== 'web') {
         try {
           const content = await readFileContent(file.uri);
           mediumHaptic();
-          // Re-store with content for future use
           addRecent({ ...file, content });
           setOpenFile({ name: file.name, uri: file.uri, content });
           router.navigate('/(tabs)/viewer');
@@ -110,7 +125,6 @@ export default function FilesScreen() {
         }
       }
 
-      // Web: no stored content and blob URL expired — prompt re-open
       Alert.alert(
         'File needs to be re-opened',
         'The cached link to this file has expired. Please select the file again.',
@@ -125,22 +139,34 @@ export default function FilesScreen() {
 
   const pickFile = useCallback(async () => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: Platform.OS === 'web'
-          ? ['text/markdown', 'text/x-markdown', 'text/plain', '*/*']
-          : ['text/markdown', 'text/plain', 'text/x-markdown', '*/*'],
-        copyToCacheDirectory: true,
-        multiple: false,
-      });
+      let result: DocumentPicker.DocumentPickerResult;
+
+      try {
+        // First attempt with platform-specific types
+        result = await DocumentPicker.getDocumentAsync({
+          type: getPickerTypes(),
+          copyToCacheDirectory: true,
+          multiple: false,
+        });
+      } catch {
+        // Fallback: if specific MIME types fail, use wildcard
+        result = await DocumentPicker.getDocumentAsync({
+          type: ['*/*'],
+          copyToCacheDirectory: true,
+          multiple: false,
+        });
+      }
 
       if (result.canceled || !result.assets?.length) return;
 
       const asset = result.assets[0];
       const name = asset.name ?? 'Untitled.md';
 
-      const ext = name.split('.').pop()?.toLowerCase();
-      if (ext !== 'md' && ext !== 'markdown' && ext !== 'txt') {
-        Alert.alert('Unsupported file', 'Please select a Markdown file (.md or .markdown).');
+      if (!isMarkdownFile(name)) {
+        Alert.alert(
+          'Unsupported file',
+          'Please select a Markdown file (.md, .markdown, or .txt).',
+        );
         return;
       }
 
@@ -158,8 +184,8 @@ export default function FilesScreen() {
       }
 
       await openFileFresh(asset.uri, name, asset.uri, size);
-    } catch {
-      Alert.alert('Error', 'Could not open file picker.');
+    } catch (err) {
+      Alert.alert('Error', 'Could not open file picker. Please try again.');
     }
   }, [openFileFresh]);
 
