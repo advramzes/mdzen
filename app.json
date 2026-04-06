@@ -26,33 +26,10 @@
         {
           "action": "VIEW",
           "data": [
-            {
-              "mimeType": "text/markdown"
-            },
-            {
-              "mimeType": "text/x-markdown"
-            },
-            {
-              "scheme": "file",
-              "pathPattern": ".*\\.md"
-            },
-            {
-              "scheme": "content",
-              "pathPattern": ".*\\.md"
-            },
-            {
-              "scheme": "file",
-              "pathPattern": ".*\\.markdown"
-            },
-            {
-              "scheme": "content",
-              "pathPattern": ".*\\.markdown"
-            }
+            { "scheme": "file", "mimeType": "text/*" },
+            { "scheme": "content", "mimeType": "text/*" }
           ],
-          "category": [
-            "DEFAULT",
-            "BROWSABLE"
-          ]
+          "category": ["DEFAULT", "BROWSABLE"]
         }
       ],
       "package": "com.advramzes.mdzen"
