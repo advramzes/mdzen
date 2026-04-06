@@ -11,6 +11,8 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { FilePlus, FileText, SearchX } from 'lucide-react-native';
 import { useTheme } from '../../hooks/useTheme';
 import { useRecentFiles, type RecentFile } from '../../hooks/useRecentFiles';
@@ -20,13 +22,12 @@ import { SearchBar } from '../../components/SearchBar';
 import { SPACING, RADIUS, ICON_SIZE, FONT, MIN_TOUCH } from '../../constants/config';
 import { s, ms } from '../../utils/scale';
 import { mediumHaptic } from '../../utils/haptics';
-import { readFileFromUri } from '../../utils/fileReader';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 function isMarkdownFile(name: string): boolean {
-  const ext = name.split('.').pop()?.toLowerCase();
-  return ext === 'md' || ext === 'markdown' || ext === 'txt';
+  const ext = name.split('.').pop()?.toLowerCase() ?? '';
+  return ['md', 'markdown', 'txt'].includes(ext);
 }
 
 export default function FilesScreen() {
@@ -59,6 +60,7 @@ export default function FilesScreen() {
   // Open a file from recents — use stored content if available
   const openFileFromRecent = useCallback(
     async (file: RecentFile) => {
+      // If content is stored, use it directly
       if (file.content) {
         mediumHaptic();
         updateLastOpened(file.uri);
@@ -67,30 +69,33 @@ export default function FilesScreen() {
         return;
       }
 
+      // On native, try reading from cached URI
       if (Platform.OS !== 'web') {
         try {
-          const content = await readFileFromUri(file.uri);
+          const content = await FileSystem.readAsStringAsync(file.uri);
           mediumHaptic();
           addRecent({ ...file, content });
           setOpenFile({ name: file.name, uri: file.uri, content });
           router.navigate('/(tabs)/viewer');
           return;
-        } catch {
+        } catch (error: any) {
           Alert.alert(
-            'File not found',
-            'This file may have been moved or deleted.',
+            'File needs to be re-opened',
+            'The cached file has been cleaned up. Please select the file again.',
             [
+              { text: 'Open File', onPress: () => pickFile() },
               { text: 'Remove from recents', onPress: () => removeRecent(file.uri), style: 'destructive' },
-              { text: 'OK', style: 'cancel' },
+              { text: 'Cancel', style: 'cancel' },
             ],
           );
           return;
         }
       }
 
+      // Web: no stored content and blob URL expired
       Alert.alert(
         'File needs to be re-opened',
-        'The cached link to this file has expired. Please select the file again.',
+        'Please select the file again.',
         [
           { text: 'Open File', onPress: () => pickFile() },
           { text: 'Cancel', style: 'cancel' },
@@ -100,93 +105,81 @@ export default function FilesScreen() {
     [updateLastOpened, addRecent, setOpenFile, router, removeRecent],
   );
 
-  // ---- WEB file picker: native HTML <input type="file"> ----
+  // ---- WEB: native HTML <input type="file"> ----
   const pickFileWeb = useCallback(async () => {
     try {
-      // Dynamic import to avoid bundling on native
       const { pickFileWeb: webPicker } = await import('../../utils/webFilePicker');
       setLoading(true);
 
       const result = await webPicker();
       if (!result) {
         setLoading(false);
-        return; // user cancelled
+        return;
       }
 
       const { name, size, content } = result;
 
       if (!isMarkdownFile(name)) {
         setLoading(false);
-        Alert.alert('Unsupported file', 'Please select a Markdown file (.md, .markdown, or .txt).');
-        return;
-      }
-
-      if (!content) {
-        setLoading(false);
-        Alert.alert('Error', 'File appears to be empty or unreadable.');
+        Alert.alert('Unsupported file', 'Please select a .md, .markdown, or .txt file.');
         return;
       }
 
       setLoading(false);
       openWithContent(name, `web://${name}`, size, content);
-    } catch (err: any) {
+    } catch (error: any) {
       setLoading(false);
-      Alert.alert('File read error', String(err?.message ?? err));
+      Alert.alert('File Open Error', error?.message || 'Unknown error occurred');
     }
   }, [openWithContent]);
 
-  // ---- NATIVE file picker: expo-document-picker ----
+  // ---- NATIVE (Android/iOS): expo-document-picker ----
   const pickFileNative = useCallback(async () => {
     try {
-      const DocumentPicker = await import('expo-document-picker');
-
+      // MUST use type: "*/*" — Android file managers don't know text/markdown
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['*/*'],
+        type: '*/*',
         copyToCacheDirectory: true,
-        multiple: false,
       });
 
-      if (result.canceled || !result.assets?.length) return;
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const name = asset.name ?? 'Untitled.md';
 
-      const asset = result.assets[0];
-      const name = asset.name ?? 'Untitled.md';
-
-      if (!isMarkdownFile(name)) {
-        Alert.alert('Unsupported file', 'Please select a Markdown file (.md, .markdown, or .txt).');
-        return;
-      }
-
-      const size = asset.size ?? 0;
-
-      try {
-        setLoading(true);
-        const content = await readFileFromUri(asset.uri);
-        setLoading(false);
-
-        if (!content) {
-          Alert.alert('Error', 'File appears to be empty or unreadable.');
+        // Check file extension after selection
+        if (!isMarkdownFile(name)) {
+          Alert.alert('Wrong file type', 'Please select a .md, .markdown, or .txt file.');
           return;
         }
 
-        if (size > MAX_FILE_SIZE) {
-          Alert.alert(
-            'Large file',
-            `This file is ${(size / 1024 / 1024).toFixed(1)}MB. It may take a moment to render.`,
-            [
-              { text: 'Open anyway', onPress: () => openWithContent(name, asset.uri, size, content) },
-              { text: 'Cancel', style: 'cancel' },
-            ],
-          );
-          return;
-        }
+        const size = asset.size ?? 0;
 
-        openWithContent(name, asset.uri, size, content);
-      } catch (err: any) {
-        setLoading(false);
-        Alert.alert('File read error', String(err?.message ?? err));
+        try {
+          setLoading(true);
+          // Read from cached URI — copyToCacheDirectory ensures this works
+          const content = await FileSystem.readAsStringAsync(asset.uri);
+          setLoading(false);
+
+          if (size > MAX_FILE_SIZE) {
+            Alert.alert(
+              'Large file',
+              `This file is ${(size / 1024 / 1024).toFixed(1)}MB. It may take a moment to render.`,
+              [
+                { text: 'Open anyway', onPress: () => openWithContent(name, asset.uri, size, content) },
+                { text: 'Cancel', style: 'cancel' },
+              ],
+            );
+            return;
+          }
+
+          openWithContent(name, asset.uri, size, content);
+        } catch (error: any) {
+          setLoading(false);
+          Alert.alert('File Read Error', error?.message || 'Could not read the file content.');
+        }
       }
-    } catch (err: any) {
-      Alert.alert('Error', 'Could not open file picker: ' + String(err?.message ?? err));
+    } catch (error: any) {
+      Alert.alert('File Open Error', error?.message || 'Could not open file picker.');
     }
   }, [openWithContent]);
 
@@ -279,14 +272,10 @@ export default function FilesScreen() {
                 strokeWidth={1}
                 accessibilityLabel="No files illustration"
               />
-              <Text
-                style={[styles.emptyTitle, { color: colors.onBackground }]}
-              >
+              <Text style={[styles.emptyTitle, { color: colors.onBackground }]}>
                 Open your first Markdown file
               </Text>
-              <Text
-                style={[styles.emptySubtitle, { color: colors.tabBarInactive }]}
-              >
+              <Text style={[styles.emptySubtitle, { color: colors.tabBarInactive }]}>
                 Tap here or the button above to browse
               </Text>
             </Pressable>
@@ -298,9 +287,7 @@ export default function FilesScreen() {
                 strokeWidth={1}
                 accessibilityLabel="No search results"
               />
-              <Text
-                style={[styles.emptySubtitle, { color: colors.tabBarInactive }]}
-              >
+              <Text style={[styles.emptySubtitle, { color: colors.tabBarInactive }]}>
                 No matches found
               </Text>
             </View>
